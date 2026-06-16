@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { BarChart3, Download, Filter, Users, Shield, Clock, Calendar } from 'lucide-react';
+import { BarChart3, Download, FileText, Filter, Users, Shield, Clock, Calendar } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 type TipoReporte = 'empleados' | 'permisos' | 'asignaciones' | 'bloques';
 type Periodo = 'hoy' | 'semana' | 'mes' | 'personalizado';
@@ -14,6 +16,26 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(false);
   const [fechasPersonalizadas, setFechasPersonalizadas] = useState({ inicio: '', fin: '' });
   const [resumen, setResumen] = useState<any>({});
+  const [empresa, setEmpresa] = useState<any>(null);
+
+  useEffect(() => {
+    cargarEmpresa();
+  }, []);
+
+  const cargarEmpresa = async () => {
+    try {
+      const { data } = await supabase
+        .from('companies')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (data) setEmpresa(data);
+    } catch (error) {
+      console.error('Error cargando empresa:', error);
+    }
+  };
 
   const obtenerRangoFechas = () => {
     const hoy = new Date();
@@ -162,6 +184,174 @@ export default function ReportesPage() {
     a.click();
   };
 
+  const exportarPDF = async () => {
+    if (datos.length === 0) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // ENCABEZADO: Logo y nombre de empresa
+    let yPos = 15;
+
+    // Cargar logo si existe
+    if (empresa?.logo_url) {
+      try {
+        const response = await fetch(empresa.logo_url);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        
+        reader.onload = function() {
+          const imgData = reader.result as string;
+          doc.addImage(imgData, 'PNG', 14, 10, 20, 20);
+        };
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error('Error cargando logo:', error);
+      }
+    }
+
+    // Nombre de empresa
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(empresa?.nombre_fantasia || 'Mi Empresa', 40, 18);
+    
+    // Razón social
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(empresa?.razon_social || '', 40, 25);
+
+    // Título del reporte
+    yPos = 40;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    const titulos: Record<string, string> = {
+      empleados: 'Reporte de Empleados',
+      permisos: 'Reporte de Permisos',
+      asignaciones: 'Reporte de Asignaciones',
+      bloques: 'Reporte de Bloques Horarios'
+    };
+    doc.text(titulos[tipoReporte], pageWidth / 2, yPos, { align: 'center' });
+
+    // Período
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const { inicio, fin } = obtenerRangoFechas();
+    doc.text(`Período: ${inicio} al ${fin}`, pageWidth / 2, yPos, { align: 'center' });
+
+    // Fecha de generación
+    yPos += 6;
+    doc.text(`Generado: ${new Date().toLocaleString('es-CL')}`, pageWidth / 2, yPos, { align: 'center' });
+
+    // TABLA DE DATOS
+    yPos += 10;
+    
+    let headers: string[][];
+    let body: string[][];
+
+    if (tipoReporte === 'empleados') {
+      headers = [['RUT', 'Nombres', 'Apellidos', 'Teléfono', 'Correo', 'Estado']];
+      body = datos.map((d: any) => [
+        d.rut || '',
+        d.nombres || '',
+        d.apellidos || '',
+        d.telefono || '',
+        d.correo || '',
+        d.estado || ''
+      ]);
+    } else if (tipoReporte === 'permisos') {
+      headers = [['Empleado', 'Fecha Inicio', 'Fecha Fin', 'Tipo', 'Motivo', 'Estado']];
+      body = datos.map((d: any) => [
+        `${d.employees?.nombres || ''} ${d.employees?.apellidos || ''}`,
+        d.fecha_inicio || '',
+        d.fecha_fin || '',
+        d.tipo || '',
+        d.motivo || '',
+        d.estado || ''
+      ]);
+    } else if (tipoReporte === 'asignaciones') {
+      headers = [['Empleado', 'Bloque', 'Ambiente', 'Inicio', 'Fin', 'Estado']];
+      body = datos.map((d: any) => [
+        `${d.employees?.nombres || ''} ${d.employees?.apellidos || ''}`,
+        d.time_blocks?.nombre || '',
+        d.work_environments?.nombre || '',
+        d.fecha_inicio || '',
+        d.fecha_fin || '',
+        d.estado || ''
+      ]);
+    } else {
+      headers = [['Nombre', 'Hora Inicio', 'Hora Fin', 'Días']];
+      body = datos.map((d: any) => [
+        d.nombre || '',
+        d.hora_inicio || '',
+        d.hora_fin || '',
+        d.dias_semana || ''
+      ]);
+    }
+
+    autoTable(doc, {
+      head: headers,
+      body: body,
+      startY: yPos,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [30, 64, 175],
+        textColor: 255,
+        fontSize: 9,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [50, 50, 50]
+      },
+      alternateRowStyles: {
+        fillColor: [240, 240, 240]
+      },
+      margin: { left: 14, right: 14 },
+      styles: {
+        cellPadding: 3,
+        overflow: 'linebreak'
+      }
+    });
+
+    // PIE DE PÁGINA: Datos de la empresa
+    const finalY = (doc as any).lastAutoTable.finalY || yPos + 100;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Línea separadora
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, finalY + 10, pageWidth - 14, finalY + 10);
+
+    // Datos de la empresa en texto pequeño
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+
+    const pieY = finalY + 15;
+    const pieText = [
+      empresa?.razon_social || '',
+      `RUT: ${empresa?.rut || ''}`,
+      `Dirección: ${empresa?.direccion || ''}`,
+      `Generado por Sistema de Gestión RRHH - ${new Date().getFullYear()}`
+    ];
+
+    pieText.forEach((line, index) => {
+      doc.text(line, pageWidth / 2, pieY + (index * 4), { align: 'center' });
+    });
+
+    // Número de página
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+
+    // Guardar PDF
+    doc.save(`reporte_${tipoReporte}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const tiposReporte = [
     { id: 'empleados', label: 'Empleados', icon: Users },
     { id: 'permisos', label: 'Permisos', icon: Shield },
@@ -176,7 +366,6 @@ export default function ReportesPage() {
     { id: 'personalizado', label: 'Personalizado' },
   ];
 
-  // Columnas a mostrar según tipo de reporte
   const getColumnasVisibles = () => {
     if (tipoReporte === 'empleados') {
       return ['rut', 'nombres', 'apellidos', 'telefono', 'correo', 'nivel_estudios', 'estado', 'created_at'];
@@ -208,15 +397,24 @@ export default function ReportesPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
             <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-700" /> Reportes Avanzados
           </h1>
-          <p className="text-gray-500 text-sm">Genera reportes por período y exporta a CSV.</p>
+          <p className="text-gray-500 text-sm">Genera reportes por período y exporta a CSV o PDF.</p>
         </div>
-        <button 
-          onClick={exportarCSV} 
-          disabled={datos.length === 0} 
-          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm text-sm font-semibold whitespace-nowrap"
-        >
-          <Download className="w-4 h-4" /> Exportar CSV
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={exportarCSV} 
+            disabled={datos.length === 0} 
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm text-sm font-semibold whitespace-nowrap"
+          >
+            <Download className="w-4 h-4" /> CSV
+          </button>
+          <button 
+            onClick={exportarPDF} 
+            disabled={datos.length === 0} 
+            className="bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm text-sm font-semibold whitespace-nowrap"
+          >
+            <FileText className="w-4 h-4" /> PDF
+          </button>
+        </div>
       </div>
 
       {/* Selector de tipo de reporte */}
@@ -315,7 +513,7 @@ export default function ReportesPage() {
         )}
       </div>
 
-      {/* Versión Desktop - Tabla optimizada */}
+      {/* Versión Desktop - Tabla */}
       <div className="hidden lg:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Generando reporte...</div>
