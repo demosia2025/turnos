@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/useAuth';
 import { 
-  Building2, Users, Clock, MapPin, Shield, ShieldCheck,
+  Building2, Users, Clock, MapPin, Shield, ShieldCheck, User,
   LogOut, Menu, X, Home, BarChart3, UserCheck, Database, Shuffle
 } from 'lucide-react';
 
@@ -44,6 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
     { name: 'Rotación Horarios', href: '/dashboard/rotacion', icon: Shuffle },
     { name: 'Respaldos', href: '/dashboard/respaldos', icon: Database },
+    { name: 'Mi Perfil', href: '/dashboard/perfil', icon: User },
   ] : [
     { name: 'Inicio', href: '/dashboard', icon: Home },
     { name: 'Empleados', href: '/dashboard/empleados', icon: Users },
@@ -53,6 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Permisos', href: '/dashboard/permisos', icon: Shield },
     { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
     { name: 'Rotación Horarios', href: '/dashboard/rotacion', icon: Shuffle },
+    { name: 'Mi Perfil', href: '/dashboard/perfil', icon: User },
   ];
 
   const handleLogout = async () => {
