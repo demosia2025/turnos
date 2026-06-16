@@ -176,8 +176,32 @@ export default function ReportesPage() {
     { id: 'personalizado', label: 'Personalizado' },
   ];
 
+  // Columnas a mostrar según tipo de reporte
+  const getColumnasVisibles = () => {
+    if (tipoReporte === 'empleados') {
+      return ['rut', 'nombres', 'apellidos', 'telefono', 'correo', 'nivel_estudios', 'estado', 'created_at'];
+    }
+    return null;
+  };
+
+  const columnasVisibles = getColumnasVisibles();
+
+  const getLabelColumna = (key: string) => {
+    const labels: Record<string, string> = {
+      rut: 'RUT',
+      nombres: 'Nombres',
+      apellidos: 'Apellidos',
+      telefono: 'Teléfono',
+      correo: 'Correo',
+      nivel_estudios: 'Nivel Estudios',
+      estado: 'Estado',
+      created_at: 'Creado',
+    };
+    return labels[key] || key.replace('_', ' ');
+  };
+
   return (
-    <div className="w-full overflow-x-hidden">
+    <div className="w-full px-2 sm:px-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
@@ -279,11 +303,11 @@ export default function ReportesPage() {
           datos.map((row: any, i: number) => (
             <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               {Object.entries(row)
-                .filter(([_, v]) => typeof v !== 'object' && v !== null)
+                .filter(([key, _]) => columnasVisibles?.includes(key))
                 .map(([key, value]) => (
                   <div key={key} className="flex justify-between py-1 text-sm border-b border-gray-100 last:border-0">
-                    <span className="text-gray-500 font-semibold capitalize">{key.replace('_', ' ')}:</span>
-                    <span className="text-gray-800 text-right ml-2 max-w-[60%] truncate">{String(value)}</span>
+                    <span className="text-gray-500 font-semibold capitalize">{getLabelColumna(key)}:</span>
+                    <span className="text-gray-800 text-right ml-2">{String(value)}</span>
                   </div>
                 ))}
             </div>
@@ -291,18 +315,21 @@ export default function ReportesPage() {
         )}
       </div>
 
-      {/* Versión Desktop - Tabla con scroll horizontal controlado */}
+      {/* Versión Desktop - Tabla optimizada */}
       <div className="hidden lg:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Generando reporte...</div>
         ) : (
-          <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
+          <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b sticky top-0 z-10">
+              <thead className="bg-gray-50 border-b">
                 <tr>
-                  {datos.length > 0 && Object.keys(datos[0]).filter(k => typeof datos[0][k] !== 'object').map(key => (
-                    <th key={key} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
-                      {key.replace('_', ' ')}
+                  {columnasVisibles?.map(key => (
+                    <th key={key} className={`px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap ${
+                      key === 'nombres' || key === 'apellidos' ? 'w-32' : 
+                      key === 'created_at' ? 'w-24' : ''
+                    }`}>
+                      {getLabelColumna(key)}
                     </th>
                   ))}
                 </tr>
@@ -310,9 +337,18 @@ export default function ReportesPage() {
               <tbody className="divide-y">
                 {datos.map((row, i) => (
                   <tr key={i} className="hover:bg-gray-50">
-                    {Object.entries(row).filter(([_, v]) => typeof v !== 'object').map(([key, value]) => (
-                      <td key={key} className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap max-w-[200px] truncate">
-                        {String(value)}
+                    {columnasVisibles?.map(key => (
+                      <td key={key} className={`px-3 py-2 text-sm text-gray-700 whitespace-nowrap ${
+                        key === 'nombres' || key === 'apellidos' ? 'max-w-[120px] truncate' : 
+                        key === 'created_at' ? 'text-xs' : ''
+                      }`}>
+                        {key === 'created_at' 
+                          ? new Date(String(row[key])).toLocaleDateString('es-CL', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: '2-digit' 
+                            })
+                          : String(row[key])}
                       </td>
                     ))}
                   </tr>
