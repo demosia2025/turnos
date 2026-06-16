@@ -2,149 +2,157 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+export async function GET() {
+  try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: users, error } = await supabaseAdmin.auth.admin.listUsers();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Obtener perfiles de usuario
+    const { data: profiles } = await supabaseAdmin
+      .from('user_profiles')
+      .select('*');
+
+    const usuarios = users.users.map(user => {
+      const profile = profiles?.find(p => p.id === user.id);
+      return {
+        id: user.id,
+        email: user.email,
+        nombres: profile?.nombres || '',
+        apellidos: profile?.apellidos || '',
+        rol: profile?.rol || 'supervisor',
+        created_at: user.created_at,
+        last_sign_in_at: user.last_sign_in_at
+      };
+    });
+
+    return NextResponse.json(usuarios);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-);
+}
 
 export async function POST(request: Request) {
   try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     const body = await request.json();
     const { email, password, nombres, apellidos, rol } = body;
 
-    if (!email || !password || !nombres || !apellidos) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'Todos los campos son obligatorios' }, 
+        { error: 'Email y contraseña son requeridos' },
         { status: 400 }
       );
     }
 
-    // 1. Crear usuario en auth.users con opciones para evitar email de confirmación
+    // Crear usuario en auth.users
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Forzar confirmación automática
-      user_metadata: { 
-        nombres, 
-        apellidos, 
-        rol,
-        full_name: `${nombres} ${apellidos}`
+      email_confirm: true,
+      user_metadata: {
+        nombres: nombres || '',
+        apellidos: apellidos || '',
+        rol: rol || 'supervisor'
       }
     });
 
     if (authError) {
       console.error('Error creando usuario auth:', authError);
-      
-      // Si el error es específicamente del email, damos un mensaje más claro
-      if (authError.message.includes('email')) {
-        return NextResponse.json(
-          { 
-            error: 'Error con el servicio de email. Verifica que en Supabase > Authentication > Providers > Email esté desactivada la opción "Enable email confirmations"',
-            details: authError.message
-          }, 
-          { status: 500 }
-        );
-      }
-      
       return NextResponse.json(
-        { error: authError.message }, 
+        { error: authError.message },
         { status: 500 }
       );
     }
 
-    // 2. Esperar un momento a que el trigger cree el perfil automáticamente
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Crear perfil en user_profiles
+    if (authData.user) {
+      const { error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .insert([
+          {
+            id: authData.user.id,
+            email: email,
+            nombres: nombres || '',
+            apellidos: apellidos || '',
+            rol: rol || 'supervisor'
+          }
+        ]);
 
-    // 3. Actualizar el perfil con los datos adicionales
-    const { error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .update({ 
-        nombres, 
-        apellidos, 
-        rol,
-        email 
-      })
-      .eq('id', authData.user.id);
-
-    if (profileError) {
-      console.error('Error actualizando perfil:', profileError);
+      if (profileError) {
+        console.error('Error creando perfil:', profileError);
+        // No fallar si el perfil ya existe (por el trigger)
+        if (!profileError.message.includes('duplicate')) {
+          return NextResponse.json(
+            { error: profileError.message },
+            { status: 500 }
+          );
+        }
+      }
     }
 
     return NextResponse.json({ 
       success: true, 
-      user: {
-        id: authData.user.id,
-        email: authData.user.email,
-        nombres,
-        apellidos,
-        rol
-      }
+      user: authData.user 
     });
   } catch (error: any) {
-    console.error('Error en API usuarios:', error);
+    console.error('Error en POST /api/usuarios:', error);
     return NextResponse.json(
-      { error: error.message || 'Error interno del servidor' }, 
+      { error: error.message || 'Error interno del servidor' },
       { status: 500 }
     );
   }
 }
 
-// ... (mantén las funciones GET, PATCH y DELETE como estaban)
-export async function GET() {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('user_profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return NextResponse.json({ data });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function PATCH(request: Request) {
-  try {
-    const body = await request.json();
-    const { id, rol } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
-    }
-
-    const { error } = await supabaseAdmin
-      .from('user_profiles')
-      .update({ rol })
-      .eq('id', id);
-
-    if (error) throw error;
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
 export async function DELETE(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('id');
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'ID de usuario requerido' },
+        { status: 400 }
+      );
     }
 
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
-    if (error) throw error;
+    // Eliminar perfil primero
+    await supabaseAdmin
+      .from('user_profiles')
+      .delete()
+      .eq('id', userId);
+
+    // Eliminar usuario de auth
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    );
   }
 }
