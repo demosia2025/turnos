@@ -9,7 +9,6 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Obtener todos los usuarios de auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
 
     if (authError) {
@@ -20,16 +19,10 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    // Obtener perfiles de usuario
-    const { data: profiles, error: profilesError } = await supabaseAdmin
+    const { data: profiles } = await supabaseAdmin
       .from('user_profiles')
       .select('*');
 
-    if (profilesError) {
-      console.error('Error obteniendo perfiles:', profilesError);
-    }
-
-    // Combinar datos
     const usuarios = authData.users.map(user => {
       const profile = profiles?.find(p => p.id === user.id);
       return {
@@ -73,7 +66,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Crear usuario en auth.users
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -93,8 +85,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Crear perfil en user_profiles
     if (authData.user) {
+      // Guardar nombres y apellidos tal como vienen del formulario
       const { error: profileError } = await supabaseAdmin
         .from('user_profiles')
         .insert([
@@ -109,7 +101,6 @@ export async function POST(request: Request) {
 
       if (profileError) {
         console.error('Error creando perfil:', profileError);
-        // Si el perfil ya existe (por el trigger), no fallar
         if (!profileError.message.includes('duplicate') && !profileError.code?.includes('23505')) {
           return NextResponse.json(
             { error: profileError.message },
@@ -141,30 +132,64 @@ export async function PATCH(request: Request) {
     );
 
     const body = await request.json();
-    const { id, rol } = body;
+    const { id, rol, action, password } = body;
 
-    if (!id || !rol) {
+    if (!id) {
       return NextResponse.json(
-        { error: 'ID y rol son requeridos' },
+        { error: 'ID de usuario requerido' },
         { status: 400 }
       );
     }
 
-    // Actualizar rol en user_profiles
-    const { error } = await supabaseAdmin
-      .from('user_profiles')
-      .update({ rol })
-      .eq('id', id);
+    // CAMBIAR CONTRASEÑA
+    if (action === 'change_password') {
+      if (!password || password.length < 6) {
+        return NextResponse.json(
+          { error: 'La contraseña debe tener al menos 6 caracteres' },
+          { status: 400 }
+        );
+      }
 
-    if (error) {
-      console.error('Error actualizando rol:', error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(id, {
+        password: password
+      });
+
+      if (error) {
+        console.error('Error cambiando contraseña:', error);
+        return NextResponse.json(
+          { error: error.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ 
+        success: true,
+        message: 'Contraseña actualizada exitosamente'
+      });
     }
 
-    return NextResponse.json({ success: true });
+    // CAMBIAR ROL
+    if (rol) {
+      const { error } = await supabaseAdmin
+        .from('user_profiles')
+        .update({ rol })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error actualizando rol:', error);
+        return NextResponse.json(
+          { error: error.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json(
+      { error: 'Acción no válida' },
+      { status: 400 }
+    );
   } catch (error: any) {
     console.error('Error en PATCH /api/usuarios:', error);
     return NextResponse.json(
@@ -191,13 +216,11 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Eliminar perfil primero
     await supabaseAdmin
       .from('user_profiles')
       .delete()
       .eq('id', userId);
 
-    // Eliminar usuario de auth
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (error) {
