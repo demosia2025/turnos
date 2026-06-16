@@ -9,18 +9,28 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { data: users, error } = await supabaseAdmin.auth.admin.listUsers();
+    // Obtener todos los usuarios de auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (authError) {
+      console.error('Error listando usuarios:', authError);
+      return NextResponse.json({ 
+        error: authError.message,
+        data: [] 
+      }, { status: 500 });
     }
 
     // Obtener perfiles de usuario
-    const { data: profiles } = await supabaseAdmin
+    const { data: profiles, error: profilesError } = await supabaseAdmin
       .from('user_profiles')
       .select('*');
 
-    const usuarios = users.users.map(user => {
+    if (profilesError) {
+      console.error('Error obteniendo perfiles:', profilesError);
+    }
+
+    // Combinar datos
+    const usuarios = authData.users.map(user => {
       const profile = profiles?.find(p => p.id === user.id);
       return {
         id: user.id,
@@ -33,9 +43,16 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json(usuarios);
+    return NextResponse.json({ 
+      success: true,
+      data: usuarios 
+    });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Error en GET /api/usuarios:', error);
+    return NextResponse.json({ 
+      error: error.message,
+      data: [] 
+    }, { status: 500 });
   }
 }
 
@@ -92,8 +109,8 @@ export async function POST(request: Request) {
 
       if (profileError) {
         console.error('Error creando perfil:', profileError);
-        // No fallar si el perfil ya existe (por el trigger)
-        if (!profileError.message.includes('duplicate')) {
+        // Si el perfil ya existe (por el trigger), no fallar
+        if (!profileError.message.includes('duplicate') && !profileError.code?.includes('23505')) {
           return NextResponse.json(
             { error: profileError.message },
             { status: 500 }
@@ -104,12 +121,54 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
+      message: 'Usuario creado exitosamente',
       user: authData.user 
     });
   } catch (error: any) {
     console.error('Error en POST /api/usuarios:', error);
     return NextResponse.json(
       { error: error.message || 'Error interno del servidor' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const body = await request.json();
+    const { id, rol } = body;
+
+    if (!id || !rol) {
+      return NextResponse.json(
+        { error: 'ID y rol son requeridos' },
+        { status: 400 }
+      );
+    }
+
+    // Actualizar rol en user_profiles
+    const { error } = await supabaseAdmin
+      .from('user_profiles')
+      .update({ rol })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error actualizando rol:', error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Error en PATCH /api/usuarios:', error);
+    return NextResponse.json(
+      { error: error.message },
       { status: 500 }
     );
   }
@@ -142,6 +201,7 @@ export async function DELETE(request: Request) {
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (error) {
+      console.error('Error eliminando usuario:', error);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
@@ -150,6 +210,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    console.error('Error en DELETE /api/usuarios:', error);
     return NextResponse.json(
       { error: error.message },
       { status: 500 }
