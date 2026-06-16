@@ -1,9 +1,8 @@
-// app/dashboard/reportes/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { BarChart3, Download, Filter, Users, Shield, Clock, Calendar, TrendingUp } from 'lucide-react';
+import { BarChart3, Download, Filter, Users, Shield, Clock, Calendar } from 'lucide-react';
 
 type TipoReporte = 'empleados' | 'permisos' | 'asignaciones' | 'bloques';
 type Periodo = 'hoy' | 'semana' | 'mes' | 'personalizado';
@@ -59,7 +58,6 @@ export default function ReportesPage() {
           .from('employees')
           .select('*')
           .order('created_at', { ascending: false });
-        
         if (error) throw error;
         data = result || [];
       } else if (tipoReporte === 'permisos') {
@@ -69,7 +67,6 @@ export default function ReportesPage() {
           .gte('fecha_inicio', inicio)
           .lte('fecha_inicio', fin)
           .order('fecha_solicitud', { ascending: false });
-        
         if (error) throw error;
         data = result || [];
       } else if (tipoReporte === 'asignaciones') {
@@ -79,7 +76,6 @@ export default function ReportesPage() {
           .gte('fecha_inicio', inicio)
           .lte('fecha_inicio', fin)
           .order('created_at', { ascending: false });
-        
         if (error) throw error;
         data = result || [];
       } else if (tipoReporte === 'bloques') {
@@ -87,7 +83,6 @@ export default function ReportesPage() {
           .from('time_blocks')
           .select('*')
           .order('nombre');
-        
         if (error) throw error;
         data = result || [];
       }
@@ -124,15 +119,11 @@ export default function ReportesPage() {
         finalizadas: data.filter((d: any) => d.estado === 'finalizado').length,
       });
     } else {
-      setResumen({
-        total: data.length,
-      });
+      setResumen({ total: data.length });
     }
   };
 
-  useEffect(() => { 
-    generarReporte(); 
-  }, [tipoReporte, periodo]);
+  useEffect(() => { generarReporte(); }, [tipoReporte, periodo]);
 
   const exportarCSV = () => {
     if (datos.length === 0) return;
@@ -171,45 +162,56 @@ export default function ReportesPage() {
     a.click();
   };
 
+  const tiposReporte = [
+    { id: 'empleados', label: 'Empleados', icon: Users },
+    { id: 'permisos', label: 'Permisos', icon: Shield },
+    { id: 'asignaciones', label: 'Asignaciones', icon: Clock },
+    { id: 'bloques', label: 'Bloques', icon: Calendar },
+  ];
+
+  const periodos = [
+    { id: 'hoy', label: 'Hoy' },
+    { id: 'semana', label: 'Semana' },
+    { id: 'mes', label: 'Mes' },
+    { id: 'personalizado', label: 'Personalizado' },
+  ];
+
   return (
-    <div>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+    <div className="w-full">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-blue-700" /> Reportes Avanzados
           </h1>
           <p className="text-gray-500 text-sm">Genera reportes por período y exporta a CSV.</p>
         </div>
-        <button onClick={exportarCSV} disabled={datos.length === 0} className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm">
-          <Download className="w-4 h-4" />
-          <span className="hidden sm:inline">Exportar CSV</span>
-          <span className="sm:hidden">CSV</span>
+        <button 
+          onClick={exportarCSV} 
+          disabled={datos.length === 0} 
+          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm text-sm font-semibold"
+        >
+          <Download className="w-4 h-4" /> Exportar CSV
         </button>
       </div>
 
-      {/* Selector de tipo de reporte */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
-        {[
-          { id: 'empleados', label: 'Empleados', icon: Users, color: 'blue' },
-          { id: 'permisos', label: 'Permisos', icon: Shield, color: 'yellow' },
-          { id: 'asignaciones', label: 'Asignaciones', icon: Clock, color: 'green' },
-          { id: 'bloques', label: 'Bloques', icon: Calendar, color: 'blue' },
-        ].map((item) => {
+      {/* Selector de tipo de reporte - Grid responsive */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        {tiposReporte.map((item) => {
           const Icon = item.icon;
+          const activo = tipoReporte === item.id;
           return (
             <button 
               key={item.id} 
               onClick={() => setTipoReporte(item.id as TipoReporte)} 
-              className={`p-3 md:p-4 rounded-xl border-2 transition-all flex items-center gap-2 md:gap-3 ${
-                tipoReporte === item.id 
-                  ? `bg-${item.color}-50 border-${item.color}-500` 
-                  : 'border-gray-200 bg-white hover:border-gray-300'
+              className={`p-3 rounded-xl border-2 transition-all flex items-center gap-2 ${
+                activo 
+                  ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                  : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
               }`}
             >
-              <Icon className={`w-5 h-5 md:w-6 md:h-6 ${
-                tipoReporte === item.id ? `text-${item.color}-600` : 'text-gray-400'
-              }`} />
-              <span className="font-semibold text-gray-700 text-sm md:text-base">{item.label}</span>
+              <Icon className={`w-5 h-5 flex-shrink-0 ${activo ? 'text-blue-600' : 'text-gray-400'}`} />
+              <span className="font-semibold text-sm">{item.label}</span>
             </button>
           );
         })}
@@ -219,54 +221,37 @@ export default function ReportesPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Filter className="w-4 h-4 text-gray-500" />
-          <span className="font-semibold text-gray-700">Filtrar por período</span>
+          <span className="font-semibold text-gray-700 text-sm">Filtrar por período</span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3">
-          <button 
-            onClick={() => setPeriodo('hoy')}
-            className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${periodo === 'hoy' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          >
-            Hoy
-          </button>
-          <button 
-            onClick={() => setPeriodo('semana')}
-            className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${periodo === 'semana' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          >
-            Semana
-          </button>
-          <button 
-            onClick={() => setPeriodo('mes')}
-            className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${periodo === 'mes' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          >
-            Mes
-          </button>
-          <button 
-            onClick={() => setPeriodo('personalizado')}
-            className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${periodo === 'personalizado' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          >
-            Personalizado
-          </button>
-          <button 
-            onClick={generarReporte}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-sm"
-          >
-            Aplicar
-          </button>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {periodos.map((p) => (
+            <button 
+              key={p.id}
+              onClick={() => setPeriodo(p.id as Periodo)}
+              className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                periodo === p.id 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
 
         {periodo === 'personalizado' && (
-          <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
             <input 
               type="date" 
               value={fechasPersonalizadas.inicio} 
               onChange={(e) => setFechasPersonalizadas({...fechasPersonalizadas, inicio: e.target.value})} 
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
             />
             <input 
               type="date" 
               value={fechasPersonalizadas.fin} 
               onChange={(e) => setFechasPersonalizadas({...fechasPersonalizadas, fin: e.target.value})} 
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
             />
           </div>
         )}
@@ -274,18 +259,18 @@ export default function ReportesPage() {
 
       {/* Tarjetas de Resumen */}
       {Object.keys(resumen).length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           {Object.entries(resumen).map(([key, value]) => (
-            <div key={key} className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-4">
-              <p className="text-xs text-gray-500 uppercase font-semibold capitalize">{key}</p>
-              <p className="text-xl md:text-2xl font-bold text-gray-800 mt-1">{value as number}</p>
+            <div key={key} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <p className="text-xs text-gray-500 uppercase font-semibold">{key}</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{value as number}</p>
             </div>
           ))}
         </div>
       )}
 
       {/* Versión Móvil - Cards */}
-      <div className="md:hidden space-y-3">
+      <div className="lg:hidden space-y-3 mb-6">
         {loading ? (
           <div className="text-center p-8 text-gray-500">Generando reporte...</div>
         ) : datos.length === 0 ? (
@@ -298,7 +283,7 @@ export default function ReportesPage() {
                 .map(([key, value]) => (
                   <div key={key} className="flex justify-between py-1 text-sm border-b border-gray-100 last:border-0">
                     <span className="text-gray-500 font-semibold capitalize">{key.replace('_', ' ')}:</span>
-                    <span className="text-gray-800 text-right ml-2">{String(value)}</span>
+                    <span className="text-gray-800 text-right ml-2 max-w-[60%] truncate">{String(value)}</span>
                   </div>
                 ))}
             </div>
@@ -306,17 +291,17 @@ export default function ReportesPage() {
         )}
       </div>
 
-      {/* Versión Desktop - Tabla */}
-      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      {/* Versión Desktop - Tabla con scroll horizontal */}
+      <div className="hidden lg:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Generando reporte...</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50 border-b">
                 <tr>
                   {datos.length > 0 && Object.keys(datos[0]).filter(k => typeof datos[0][k] !== 'object').map(key => (
-                    <th key={key} className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{key.replace('_', ' ')}</th>
+                    <th key={key} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{key.replace('_', ' ')}</th>
                   ))}
                 </tr>
               </thead>
@@ -324,7 +309,7 @@ export default function ReportesPage() {
                 {datos.map((row, i) => (
                   <tr key={i} className="hover:bg-gray-50">
                     {Object.entries(row).filter(([_, v]) => typeof v !== 'object').map(([key, value]) => (
-                      <td key={key} className="px-6 py-4 text-sm text-gray-700">{String(value)}</td>
+                      <td key={key} className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap max-w-[200px] truncate">{String(value)}</td>
                     ))}
                   </tr>
                 ))}
