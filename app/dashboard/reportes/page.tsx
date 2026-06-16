@@ -190,35 +190,30 @@ export default function ReportesPage() {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // ENCABEZADO: Logo y nombre de empresa
     let yPos = 15;
 
-    // Cargar logo si existe
+    // Cargar logo
     if (empresa?.logo_url) {
       try {
         const response = await fetch(empresa.logo_url);
         const blob = await response.blob();
-        const reader = new FileReader();
-        
-        reader.onload = function() {
-          const imgData = reader.result as string;
-          doc.addImage(imgData, 'PNG', 14, 10, 20, 20);
-        };
-        reader.readAsDataURL(blob);
+        const imgData = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = function() {
+            resolve(reader.result as string);
+          };
+          reader.readAsDataURL(blob);
+        });
+        doc.addImage(imgData, 'PNG', 14, 10, 20, 20);
       } catch (error) {
         console.error('Error cargando logo:', error);
       }
     }
 
-    // Nombre de empresa
+    // Nombre de fantasía (sin razón social)
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text(empresa?.nombre_fantasia || 'Mi Empresa', 40, 18);
-    
-    // Razón social
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(empresa?.razon_social || '', 40, 25);
 
     // Título del reporte
     yPos = 40;
@@ -243,7 +238,7 @@ export default function ReportesPage() {
     yPos += 6;
     doc.text(`Generado: ${new Date().toLocaleString('es-CL')}`, pageWidth / 2, yPos, { align: 'center' });
 
-    // TABLA DE DATOS
+    // TABLA
     yPos += 10;
     
     let headers: string[][];
@@ -314,30 +309,21 @@ export default function ReportesPage() {
       }
     });
 
-    // PIE DE PÁGINA: Datos de la empresa
+    // PIE DE PÁGINA - UNA SOLA LÍNEA
     const finalY = (doc as any).lastAutoTable.finalY || yPos + 100;
     const pageHeight = doc.internal.pageSize.getHeight();
     
-    // Línea separadora
     doc.setDrawColor(200, 200, 200);
     doc.line(14, finalY + 10, pageWidth - 14, finalY + 10);
 
-    // Datos de la empresa en texto pequeño
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
 
     const pieY = finalY + 15;
-    const pieText = [
-      empresa?.razon_social || '',
-      `RUT: ${empresa?.rut || ''}`,
-      `Dirección: ${empresa?.direccion || ''}`,
-      `Generado por Sistema de Gestión RRHH - ${new Date().getFullYear()}`
-    ];
-
-    pieText.forEach((line, index) => {
-      doc.text(line, pageWidth / 2, pieY + (index * 4), { align: 'center' });
-    });
+    const pieText = `${empresa?.razon_social || ''} | RUT: ${empresa?.rut || ''} | ${empresa?.direccion || ''} | Sistema RRHH ${new Date().getFullYear()}`;
+    
+    doc.text(pieText, pageWidth / 2, pieY, { align: 'center', maxWidth: pageWidth - 28 });
 
     // Número de página
     const pageCount = doc.getNumberOfPages();
@@ -348,7 +334,6 @@ export default function ReportesPage() {
       doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
     }
 
-    // Guardar PDF
     doc.save(`reporte_${tipoReporte}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
@@ -391,7 +376,6 @@ export default function ReportesPage() {
 
   return (
     <div className="w-full px-2 sm:px-4">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -417,7 +401,6 @@ export default function ReportesPage() {
         </div>
       </div>
 
-      {/* Selector de tipo de reporte */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {tiposReporte.map((item) => {
           const Icon = item.icon;
@@ -439,7 +422,6 @@ export default function ReportesPage() {
         })}
       </div>
 
-      {/* Filtros de período */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Filter className="w-4 h-4 text-gray-500" />
@@ -479,7 +461,6 @@ export default function ReportesPage() {
         )}
       </div>
 
-      {/* Tarjetas de Resumen */}
       {Object.keys(resumen).length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           {Object.entries(resumen).map(([key, value]) => (
@@ -491,7 +472,6 @@ export default function ReportesPage() {
         </div>
       )}
 
-      {/* Versión Móvil - Cards */}
       <div className="lg:hidden space-y-3 mb-6">
         {loading ? (
           <div className="text-center p-8 text-gray-500">Generando reporte...</div>
@@ -513,7 +493,6 @@ export default function ReportesPage() {
         )}
       </div>
 
-      {/* Versión Desktop - Tabla */}
       <div className="hidden lg:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Generando reporte...</div>
