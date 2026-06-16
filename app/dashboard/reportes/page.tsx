@@ -177,25 +177,25 @@ export default function ReportesPage() {
   ];
 
   return (
-    <div className="w-full">
+    <div className="w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-blue-700" /> Reportes Avanzados
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-700" /> Reportes Avanzados
           </h1>
           <p className="text-gray-500 text-sm">Genera reportes por período y exporta a CSV.</p>
         </div>
         <button 
           onClick={exportarCSV} 
           disabled={datos.length === 0} 
-          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm text-sm font-semibold"
+          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm text-sm font-semibold whitespace-nowrap"
         >
           <Download className="w-4 h-4" /> Exportar CSV
         </button>
       </div>
 
-      {/* Selector de tipo de reporte - Grid responsive */}
+      {/* Selector de tipo de reporte */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {tiposReporte.map((item) => {
           const Icon = item.icon;
@@ -223,7 +223,7 @@ export default function ReportesPage() {
           <Filter className="w-4 h-4 text-gray-500" />
           <span className="font-semibold text-gray-700 text-sm">Filtrar por período</span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {periodos.map((p) => (
             <button 
               key={p.id}
@@ -291,17 +291,19 @@ export default function ReportesPage() {
         )}
       </div>
 
-      {/* Versión Desktop - Tabla con scroll horizontal */}
+      {/* Versión Desktop - Tabla con scroll horizontal controlado */}
       <div className="hidden lg:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Generando reporte...</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
-              <thead className="bg-gray-50 border-b">
+          <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b sticky top-0 z-10">
                 <tr>
                   {datos.length > 0 && Object.keys(datos[0]).filter(k => typeof datos[0][k] !== 'object').map(key => (
-                    <th key={key} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{key.replace('_', ' ')}</th>
+                    <th key={key} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                      {key.replace('_', ' ')}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -309,7 +311,9 @@ export default function ReportesPage() {
                 {datos.map((row, i) => (
                   <tr key={i} className="hover:bg-gray-50">
                     {Object.entries(row).filter(([_, v]) => typeof v !== 'object').map(([key, value]) => (
-                      <td key={key} className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap max-w-[200px] truncate">{String(value)}</td>
+                      <td key={key} className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap max-w-[200px] truncate">
+                        {String(value)}
+                      </td>
                     ))}
                   </tr>
                 ))}
