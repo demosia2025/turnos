@@ -75,7 +75,6 @@ export default function ConfiguracionEmpresa() {
 
     try {
       if (empresaExiste && currentCompanyId) {
-        // FORZAR ACTUALIZACIÓN - Sin validar duplicados
         const updateData = {
           rut: formData.rut,
           razon_social: formData.razon_social,
@@ -93,7 +92,6 @@ export default function ConfiguracionEmpresa() {
         
         setMensaje({ tipo: 'exito', texto: 'Datos de empresa actualizados correctamente.' });
         
-        // Recargar datos actualizados
         const { data: datosActualizados } = await supabase
           .from('companies')
           .select('*')
@@ -110,7 +108,6 @@ export default function ConfiguracionEmpresa() {
           });
         }
       } else {
-        // CREAR NUEVA EMPRESA
         const insertData = {
           rut: formData.rut,
           razon_social: formData.razon_social,
@@ -127,7 +124,6 @@ export default function ConfiguracionEmpresa() {
         
         setMensaje({ tipo: 'exito', texto: 'Empresa registrada correctamente.' });
         
-        // Recargar para obtener el ID
         const { data: nuevaEmpresa } = await supabase
           .from('companies')
           .select('id')
@@ -173,12 +169,11 @@ export default function ConfiguracionEmpresa() {
       const fileName = `logo-${Date.now()}.${fileExt}`;
       const filePath = `logos/${fileName}`;
 
-      // Intentar subir con un nombre único cada vez
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('company-assets')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false // Siempre crear nuevo archivo con nombre único
+          upsert: false
         });
 
       if (uploadError) {
@@ -195,7 +190,7 @@ export default function ConfiguracionEmpresa() {
       console.error('Error subiendo logo:', error);
       setMensaje({ 
         tipo: 'error', 
-        texto: error.message || 'Error al subir el logo. Verifica que el bucket "company-assets" exista en Supabase.' 
+        texto: error.message || 'Error al subir el logo.' 
       });
     } finally {
       setLoading(false);
@@ -302,17 +297,18 @@ export default function ConfiguracionEmpresa() {
             />
           </div>
 
+          {/* SECCIÓN DE LOGO CORREGIDA - CENTRADA EN TODAS LAS PANTALLAS */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Logo de la Empresa</label>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-center justify-center gap-4">
               {formData.logo_url && (
                 <img 
                   src={formData.logo_url} 
                   alt="Logo" 
-                  className="w-20 h-20 object-contain border border-gray-300 rounded-lg p-2"
+                  className="w-32 h-32 object-contain border-2 border-gray-300 rounded-lg p-4 bg-white shadow-sm"
                 />
               )}
-              <div className="flex-1">
+              <div className="w-full max-w-xs">
                 <input
                   type="file"
                   accept="image/*"
@@ -322,13 +318,13 @@ export default function ConfiguracionEmpresa() {
                 />
                 <label
                   htmlFor="logo-upload"
-                  className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-blue-50 text-blue-700 px-6 py-3 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors font-semibold w-full"
                 >
-                  <Upload className="w-4 h-4" />
+                  <Upload className="w-5 h-5" />
                   {formData.logo_url ? 'Cambiar Logo' : 'Subir Logo'}
                 </label>
                 {formData.logo_url && (
-                  <p className="text-xs text-gray-500 mt-1">Logo actual cargado</p>
+                  <p className="text-xs text-gray-500 mt-2 text-center">Logo actual cargado</p>
                 )}
               </div>
             </div>
