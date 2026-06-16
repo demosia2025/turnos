@@ -50,34 +50,57 @@ export default function ReportesPage() {
   const generarReporte = async () => {
     setLoading(true);
     const { inicio, fin } = obtenerRangoFechas();
-    let query;
 
-    if (tipoReporte === 'empleados') {
-      query = supabase.from('employees').select('*').order('created_at', { ascending: false });
-    } else if (tipoReporte === 'permisos') {
-      query = supabase
-        .from('permissions')
-        .select('*, employees(nombres, apellidos)')
-        .gte('fecha_inicio', inicio)
-        .lte('fecha_inicio', fin)
-        .order('fecha_solicitud', { ascending: false });
-    } else if (tipoReporte === 'asignaciones') {
-      query = supabase
-        .from('assignments')
-        .select('*, employees(nombres, apellidos), time_blocks(nombre), work_environments(nombre)')
-        .gte('fecha_inicio', inicio)
-        .lte('fecha_inicio', fin)
-        .order('created_at', { ascending: false });
-    } else if (tipoReporte === 'bloques') {
-      query = supabase.from('time_blocks').select('*').order('nombre');
-    }
+    try {
+      let data: any[] = [];
 
-    const { data } = await query;
-    if (data) {
+      if (tipoReporte === 'empleados') {
+        const { data: result, error } = await supabase
+          .from('employees')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        data = result || [];
+      } else if (tipoReporte === 'permisos') {
+        const { data: result, error } = await supabase
+          .from('permissions')
+          .select('*, employees(nombres, apellidos)')
+          .gte('fecha_inicio', inicio)
+          .lte('fecha_inicio', fin)
+          .order('fecha_solicitud', { ascending: false });
+        
+        if (error) throw error;
+        data = result || [];
+      } else if (tipoReporte === 'asignaciones') {
+        const { data: result, error } = await supabase
+          .from('assignments')
+          .select('*, employees(nombres, apellidos), time_blocks(nombre), work_environments(nombre)')
+          .gte('fecha_inicio', inicio)
+          .lte('fecha_inicio', fin)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        data = result || [];
+      } else if (tipoReporte === 'bloques') {
+        const { data: result, error } = await supabase
+          .from('time_blocks')
+          .select('*')
+          .order('nombre');
+        
+        if (error) throw error;
+        data = result || [];
+      }
+
       setDatos(data);
       calcularResumen(data);
+    } catch (error: any) {
+      console.error('Error generando reporte:', error);
+      setDatos([]);
+      setResumen({});
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const calcularResumen = (data: any[]) => {
@@ -100,10 +123,16 @@ export default function ReportesPage() {
         activas: data.filter((d: any) => d.estado === 'activo').length,
         finalizadas: data.filter((d: any) => d.estado === 'finalizado').length,
       });
+    } else {
+      setResumen({
+        total: data.length,
+      });
     }
   };
 
-  useEffect(() => { generarReporte(); }, [tipoReporte, periodo]);
+  useEffect(() => { 
+    generarReporte(); 
+  }, [tipoReporte, periodo]);
 
   const exportarCSV = () => {
     if (datos.length === 0) return;
