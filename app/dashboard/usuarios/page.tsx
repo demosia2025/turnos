@@ -2,16 +2,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { UserPlus, Users, Shield, Edit2, Trash2, X, Save, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { UserPlus, Users, Shield, Trash2, X, Save, AlertCircle, CheckCircle, Loader2, Key } from 'lucide-react';
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<any>(null);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   const [formData, setFormData] = useState({
     email: '', password: '', nombres: '', apellidos: '', rol: 'supervisor'
   });
+  const [passwordForm, setPasswordForm] = useState({
+    nuevaPassword: '',
+    confirmarPassword: ''
+  });
+  const [cambiandoPassword, setCambiandoPassword] = useState(false);
 
   const fetchUsuarios = async () => {
     setLoading(true);
@@ -22,7 +29,6 @@ export default function UsuariosPage() {
       if (result.success && result.data) {
         setUsuarios(result.data);
       } else {
-        console.error('Error cargando usuarios:', result.error);
         setMensaje({ 
           tipo: 'error', 
           texto: result.error || 'Error al cargar usuarios' 
@@ -30,7 +36,6 @@ export default function UsuariosPage() {
         setUsuarios([]);
       }
     } catch (error: any) {
-      console.error('Error en fetch:', error);
       setMensaje({ 
         tipo: 'error', 
         texto: 'Error de conexión al cargar usuarios' 
@@ -116,7 +121,7 @@ export default function UsuariosPage() {
   };
 
   const handleEliminar = async (id: string, email: string) => {
-    if (confirm(`¿Estás seguro de eliminar al usuario ${email}? Esta acción no se puede deshacer.`)) {
+    if (confirm(`¿Estás seguro de eliminar al usuario ${email}?`)) {
       try {
         const res = await fetch(`/api/usuarios?id=${id}`, { 
           method: 'DELETE' 
@@ -145,6 +150,67 @@ export default function UsuariosPage() {
     }
   };
 
+  const abrirModalPassword = (usuario: any) => {
+    setUsuarioSeleccionado(usuario);
+    setPasswordForm({ nuevaPassword: '', confirmarPassword: '' });
+    setMensaje({ tipo: '', texto: '' });
+    setShowPasswordModal(true);
+  };
+
+  const handleCambiarPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCambiandoPassword(true);
+    setMensaje({ tipo: '', texto: '' });
+
+    if (passwordForm.nuevaPassword !== passwordForm.confirmarPassword) {
+      setMensaje({ tipo: 'error', texto: 'Las contraseñas no coinciden.' });
+      setCambiandoPassword(false);
+      return;
+    }
+
+    if (passwordForm.nuevaPassword.length < 6) {
+      setMensaje({ tipo: 'error', texto: 'Mínimo 6 caracteres.' });
+      setCambiandoPassword(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: usuarioSeleccionado.id, 
+          action: 'change_password',
+          password: passwordForm.nuevaPassword 
+        })
+      });
+      
+      const result = await res.json();
+      
+      if (result.success) {
+        setMensaje({ 
+          tipo: 'exito', 
+          texto: `Contraseña actualizada` 
+        });
+        setPasswordForm({ nuevaPassword: '', confirmarPassword: '' });
+        setShowPasswordModal(false);
+        setUsuarioSeleccionado(null);
+      } else {
+        setMensaje({ 
+          tipo: 'error', 
+          texto: result.error || 'Error al cambiar contraseña' 
+        });
+      }
+    } catch (error: any) {
+      setMensaje({ 
+        tipo: 'error', 
+        texto: 'Error de conexión' 
+      });
+    } finally {
+      setCambiandoPassword(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
@@ -152,7 +218,7 @@ export default function UsuariosPage() {
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <Shield className="w-6 h-6 text-blue-700" /> Gestión de Usuarios
           </h1>
-          <p className="text-gray-500 text-sm">Administra administradores y supervisores del sistema.</p>
+          <p className="text-gray-500 text-sm">Administra administradores y supervisores.</p>
         </div>
         <button 
           onClick={() => setShowModal(true)}
@@ -175,18 +241,12 @@ export default function UsuariosPage() {
         {loading ? (
           <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
-            Cargando usuarios...
+            Cargando...
           </div>
         ) : usuarios.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p>No hay usuarios registrados.</p>
-            <button 
-              onClick={() => setShowModal(true)}
-              className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg text-sm"
-            >
-              Crear el primer usuario
-            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -227,13 +287,22 @@ export default function UsuariosPage() {
                       {new Date(u.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => handleEliminar(u.id, u.email)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar usuario"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => abrirModalPassword(u)}
+                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                          title="Cambiar contraseña"
+                        >
+                          <Key className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleEliminar(u.id, u.email)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Eliminar usuario"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -247,7 +316,7 @@ export default function UsuariosPage() {
         Total: {usuarios.length} usuarios
       </div>
 
-      {/* Modal de Crear Usuario */}
+      {/* Modal Crear Usuario */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -295,7 +364,7 @@ export default function UsuariosPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Contraseña Temporal *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Contraseña *</label>
                 <input 
                   type="password" 
                   required 
@@ -305,7 +374,6 @@ export default function UsuariosPage() {
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
                   placeholder="Mínimo 6 caracteres"
                 />
-                <p className="text-xs text-gray-500 mt-1">El usuario deberá cambiarla en su primer inicio de sesión.</p>
               </div>
 
               <div>
@@ -318,10 +386,6 @@ export default function UsuariosPage() {
                   <option value="supervisor">Supervisor</option>
                   <option value="admin">Administrador</option>
                 </select>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
-                <strong>Nota:</strong> El usuario podrá iniciar sesión inmediatamente con el correo y contraseña proporcionados.
               </div>
 
               <button 
@@ -342,6 +406,83 @@ export default function UsuariosPage() {
                 )}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Cambiar Contraseña */}
+      {showPasswordModal && usuarioSeleccionado && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-purple-600 p-4 flex justify-between items-center">
+              <h2 className="text-white font-bold text-lg flex items-center gap-2">
+                <Key className="w-5 h-5 text-yellow-400" />
+                Cambiar Contraseña
+              </h2>
+              <button onClick={() => setShowPasswordModal(false)} className="text-white hover:bg-purple-700 p-1 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-xs text-blue-600 font-semibold mb-1">Usuario:</p>
+                <p className="font-bold text-gray-800 text-sm">{usuarioSeleccionado.email}</p>
+              </div>
+
+              <form onSubmit={handleCambiarPassword} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Nueva Contraseña *</label>
+                  <input 
+                    type="password" 
+                    required 
+                    minLength={6}
+                    value={passwordForm.nuevaPassword} 
+                    onChange={(e) => setPasswordForm({...passwordForm, nuevaPassword: e.target.value})} 
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Confirmar Contraseña *</label>
+                  <input 
+                    type="password" 
+                    required 
+                    minLength={6}
+                    value={passwordForm.confirmarPassword} 
+                    onChange={(e) => setPasswordForm({...passwordForm, confirmarPassword: e.target.value})} 
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(false)}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 rounded-lg"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={cambiandoPassword} 
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white font-bold py-2 rounded-lg flex justify-center items-center gap-2"
+                  >
+                    {cambiandoPassword ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Cambiando...
+                      </>
+                    ) : (
+                      <>
+                        <Key className="w-4 h-4" />
+                        Cambiar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
