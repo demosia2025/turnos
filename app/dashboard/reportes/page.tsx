@@ -181,27 +181,35 @@ export default function ReportesPage() {
           <p className="text-gray-500 text-sm">Genera reportes por período y exporta a CSV.</p>
         </div>
         <button onClick={exportarCSV} disabled={datos.length === 0} className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm">
-          <Download className="w-4 h-4" /> Exportar CSV
+          <Download className="w-4 h-4" />
+          <span className="hidden sm:inline">Exportar CSV</span>
+          <span className="sm:hidden">CSV</span>
         </button>
       </div>
 
       {/* Selector de tipo de reporte */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         {[
           { id: 'empleados', label: 'Empleados', icon: Users, color: 'blue' },
           { id: 'permisos', label: 'Permisos', icon: Shield, color: 'yellow' },
           { id: 'asignaciones', label: 'Asignaciones', icon: Clock, color: 'green' },
-          { id: 'bloques', label: 'Bloques Horarios', icon: Calendar, color: 'blue' },
+          { id: 'bloques', label: 'Bloques', icon: Calendar, color: 'blue' },
         ].map((item) => {
           const Icon = item.icon;
           return (
             <button 
               key={item.id} 
               onClick={() => setTipoReporte(item.id as TipoReporte)} 
-              className={`p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${tipoReporte === item.id ? `border-${item.color}-500 bg-${item.color}-50` : 'border-gray-200 bg-white hover:border-gray-300'}`}
+              className={`p-3 md:p-4 rounded-xl border-2 transition-all flex items-center gap-2 md:gap-3 ${
+                tipoReporte === item.id 
+                  ? `bg-${item.color}-50 border-${item.color}-500` 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
             >
-              <Icon className={`w-6 h-6 ${tipoReporte === item.id ? `text-${item.color}-600` : 'text-gray-400'}`} />
-              <span className="font-semibold text-gray-700">{item.label}</span>
+              <Icon className={`w-5 h-5 md:w-6 md:h-6 ${
+                tipoReporte === item.id ? `text-${item.color}-600` : 'text-gray-400'
+              }`} />
+              <span className="font-semibold text-gray-700 text-sm md:text-base">{item.label}</span>
             </button>
           );
         })}
@@ -213,34 +221,34 @@ export default function ReportesPage() {
           <Filter className="w-4 h-4 text-gray-500" />
           <span className="font-semibold text-gray-700">Filtrar por período</span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3">
           <button 
             onClick={() => setPeriodo('hoy')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${periodo === 'hoy' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${periodo === 'hoy' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
             Hoy
           </button>
           <button 
             onClick={() => setPeriodo('semana')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${periodo === 'semana' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${periodo === 'semana' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
-            Esta Semana
+            Semana
           </button>
           <button 
             onClick={() => setPeriodo('mes')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${periodo === 'mes' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${periodo === 'mes' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
-            Este Mes
+            Mes
           </button>
           <button 
             onClick={() => setPeriodo('personalizado')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${periodo === 'personalizado' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`px-3 py-2 rounded-lg font-semibold transition-colors text-sm ${periodo === 'personalizado' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
             Personalizado
           </button>
           <button 
             onClick={generarReporte}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg"
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-sm"
           >
             Aplicar
           </button>
@@ -266,19 +274,43 @@ export default function ReportesPage() {
 
       {/* Tarjetas de Resumen */}
       {Object.keys(resumen).length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
           {Object.entries(resumen).map(([key, value]) => (
-            <div key={key} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <p className="text-xs text-gray-500 uppercase font-semibold">{key}</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{value as number}</p>
+            <div key={key} className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-4">
+              <p className="text-xs text-gray-500 uppercase font-semibold capitalize">{key}</p>
+              <p className="text-xl md:text-2xl font-bold text-gray-800 mt-1">{value as number}</p>
             </div>
           ))}
         </div>
       )}
 
-      {/* Tabla de Resultados */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? <div className="p-8 text-center text-gray-500">Generando reporte...</div> :
+      {/* Versión Móvil - Cards */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="text-center p-8 text-gray-500">Generando reporte...</div>
+        ) : datos.length === 0 ? (
+          <div className="text-center p-8 text-gray-500">No hay datos para mostrar.</div>
+        ) : (
+          datos.map((row: any, i: number) => (
+            <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              {Object.entries(row)
+                .filter(([_, v]) => typeof v !== 'object' && v !== null)
+                .map(([key, value]) => (
+                  <div key={key} className="flex justify-between py-1 text-sm border-b border-gray-100 last:border-0">
+                    <span className="text-gray-500 font-semibold capitalize">{key.replace('_', ' ')}:</span>
+                    <span className="text-gray-800 text-right ml-2">{String(value)}</span>
+                  </div>
+                ))}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Versión Desktop - Tabla */}
+      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-gray-500">Generando reporte...</div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
@@ -299,7 +331,7 @@ export default function ReportesPage() {
               </tbody>
             </table>
           </div>
-        }
+        )}
       </div>
 
       <div className="mt-4 text-sm text-gray-500">Total de registros: {datos.length}</div>
