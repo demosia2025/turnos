@@ -211,6 +211,15 @@ export default function UsuariosPage() {
     }
   };
 
+  // Función para obtener el nombre a mostrar
+  const getNombreMostrar = (usuario: any) => {
+    if (usuario.nombres && usuario.nombres.trim() !== '') {
+      return `${usuario.nombres} ${usuario.apellidos || ''}`.trim();
+    }
+    // Si no hay nombre, usar la parte del email antes del @
+    return usuario.email.split('@')[0];
+  };
+
   return (
     <div>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
@@ -265,7 +274,7 @@ export default function UsuariosPage() {
                   <tr key={u.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-900">
-                        {u.nombres || 'Sin nombre'} {u.apellidos || ''}
+                        {getNombreMostrar(u)}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">{u.email}</td>
