@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Building2, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,7 +28,6 @@ export default function LoginPage() {
       if (error) throw error;
 
       if (data.user) {
-        // ✅ CORRECCIÓN: Redirigir a /dashboard, NO a /configuracion
         router.push('/dashboard');
         router.refresh();
       }
@@ -113,7 +113,17 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-gray-500">
+          {/* Link de Recuperar Contraseña */}
+          <div className="mt-4 text-center">
+            <Link
+              href="/recuperar-password"
+              className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
+
+          <div className="mt-4 text-center text-xs text-gray-500">
             <span className="text-yellow-600 font-semibold">Nota:</span> Sistema protegido.
             <span className="text-red-600 font-semibold ml-1">Acceso no autorizado será reportado.</span>
           </div>
