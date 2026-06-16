@@ -13,6 +13,7 @@ export default function ConfiguracionEmpresa() {
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   const [empresaExiste, setEmpresaExiste] = useState(false);
+  const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     rut: '',
     razon_social: '',
@@ -37,20 +38,29 @@ export default function ConfiguracionEmpresa() {
         .from('companies')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (data && !error) {
+      if (data && data.length > 0) {
+        const primeraEmpresa = data[0];
         setEmpresaExiste(true);
+        setCurrentCompanyId(primeraEmpresa.id);
         setFormData({
-          rut: data.rut || '',
-          razon_social: data.razon_social || '',
-          nombre_fantasia: data.nombre_fantasia || '',
-          direccion: data.direccion || '',
-          logo_url: data.logo_url || ''
+          rut: primeraEmpresa.rut || '',
+          razon_social: primeraEmpresa.razon_social || '',
+          nombre_fantasia: primeraEmpresa.nombre_fantasia || '',
+          direccion: primeraEmpresa.direccion || '',
+          logo_url: primeraEmpresa.logo_url || ''
         });
       } else {
         setEmpresaExiste(false);
+        setCurrentCompanyId(null);
+        setFormData({
+          rut: '',
+          razon_social: '',
+          nombre_fantasia: '',
+          direccion: '',
+          logo_url: ''
+        });
       }
     } catch (error) {
       console.error('Error verificando empresa:', error);
@@ -58,102 +68,83 @@ export default function ConfiguracionEmpresa() {
     }
   };
 
-  const handleCrear = async (e: React.FormEvent) => {
+  const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMensaje({ tipo: '', texto: '' });
 
     try {
-      const insertData = {
-        rut: formData.rut,
-        razon_social: formData.razon_social,
-        nombre_fantasia: formData.nombre_fantasia,
-        direccion: formData.direccion,
-        logo_url: formData.logo_url
-      };
+      if (empresaExiste && currentCompanyId) {
+        // FORZAR ACTUALIZACIÓN - Sin validar duplicados
+        const updateData = {
+          rut: formData.rut,
+          razon_social: formData.razon_social,
+          nombre_fantasia: formData.nombre_fantasia,
+          direccion: formData.direccion,
+          logo_url: formData.logo_url
+        };
 
-      const { error } = await supabase
-        .from('companies')
-        .insert([insertData]);
+        const { error } = await supabase
+          .from('companies')
+          .update(updateData)
+          .eq('id', currentCompanyId);
 
-      if (error) {
-        if (error.code === '23505' || error.message.includes('duplicate')) {
-          setMensaje({ 
-            tipo: 'error', 
-            texto: 'Ya existe una empresa con este RUT. Recarga la página.' 
+        if (error) throw error;
+        
+        setMensaje({ tipo: 'exito', texto: 'Datos de empresa actualizados correctamente.' });
+        
+        // Recargar datos actualizados
+        const { data: datosActualizados } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('id', currentCompanyId)
+          .single();
+
+        if (datosActualizados) {
+          setFormData({
+            rut: datosActualizados.rut || '',
+            razon_social: datosActualizados.razon_social || '',
+            nombre_fantasia: datosActualizados.nombre_fantasia || '',
+            direccion: datosActualizados.direccion || '',
+            logo_url: datosActualizados.logo_url || ''
           });
-        } else {
-          throw error;
         }
       } else {
+        // CREAR NUEVA EMPRESA
+        const insertData = {
+          rut: formData.rut,
+          razon_social: formData.razon_social,
+          nombre_fantasia: formData.nombre_fantasia,
+          direccion: formData.direccion,
+          logo_url: formData.logo_url
+        };
+
+        const { error } = await supabase
+          .from('companies')
+          .insert([insertData]);
+
+        if (error) throw error;
+        
         setMensaje({ tipo: 'exito', texto: 'Empresa registrada correctamente.' });
-        setEmpresaExiste(true);
+        
+        // Recargar para obtener el ID
+        const { data: nuevaEmpresa } = await supabase
+          .from('companies')
+          .select('id')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (nuevaEmpresa) {
+          setEmpresaExiste(true);
+          setCurrentCompanyId(nuevaEmpresa.id);
+        }
       }
     } catch (error: any) {
-      console.error('Error creando empresa:', error);
+      console.error('Error guardando empresa:', error);
       setMensaje({ 
         tipo: 'error', 
-        texto: error.message || 'Error al registrar la empresa.' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleActualizar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMensaje({ tipo: '', texto: '' });
-
-    try {
-      const { data: empresaData } = await supabase
-        .from('companies')
-        .select('id')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!empresaData) {
-        throw new Error('No se encontró la empresa');
-      }
-
-      const updateData = {
-        rut: formData.rut,
-        razon_social: formData.razon_social,
-        nombre_fantasia: formData.nombre_fantasia,
-        direccion: formData.direccion,
-        logo_url: formData.logo_url
-      };
-
-      const { error } = await supabase
-        .from('companies')
-        .update(updateData)
-        .eq('id', empresaData.id);
-
-      if (error) throw error;
-      
-      setMensaje({ tipo: 'exito', texto: 'Datos actualizados correctamente.' });
-      
-      const { data: datosActualizados } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('id', empresaData.id)
-        .single();
-
-      if (datosActualizados) {
-        setFormData({
-          rut: datosActualizados.rut || '',
-          razon_social: datosActualizados.razon_social || '',
-          nombre_fantasia: datosActualizados.nombre_fantasia || '',
-          direccion: datosActualizados.direccion || '',
-          logo_url: datosActualizados.logo_url || ''
-        });
-      }
-    } catch (error: any) {
-      console.error('Error actualizando empresa:', error);
-      setMensaje({ 
-        tipo: 'error', 
-        texto: error.message || 'Error al actualizar los datos.' 
+        texto: error.message || 'Error al guardar los datos.' 
       });
     } finally {
       setLoading(false);
@@ -182,35 +173,29 @@ export default function ConfiguracionEmpresa() {
       const fileName = `logo-${Date.now()}.${fileExt}`;
       const filePath = `logos/${fileName}`;
 
+      // Intentar subir con un nombre único cada vez
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('company-assets')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false
+          upsert: false // Siempre crear nuevo archivo con nombre único
         });
 
       if (uploadError) {
-        if (uploadError.message.includes('already exists')) {
-          setMensaje({ 
-            tipo: 'error', 
-            texto: 'Error: El archivo ya existe. Intenta con otro nombre.' 
-          });
-        } else {
-          throw uploadError;
-        }
-      } else {
-        const { data: urlData } = supabase.storage
-          .from('company-assets')
-          .getPublicUrl(filePath);
-
-        setFormData({ ...formData, logo_url: urlData.publicUrl });
-        setMensaje({ tipo: 'exito', texto: 'Logo subido correctamente.' });
+        throw uploadError;
       }
+
+      const { data: urlData } = supabase.storage
+        .from('company-assets')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, logo_url: urlData.publicUrl });
+      setMensaje({ tipo: 'exito', texto: 'Logo subido correctamente.' });
     } catch (error: any) {
       console.error('Error subiendo logo:', error);
       setMensaje({ 
         tipo: 'error', 
-        texto: error.message || 'Error al subir el logo. Verifica que el bucket "company-assets" exista.' 
+        texto: error.message || 'Error al subir el logo. Verifica que el bucket "company-assets" exista en Supabase.' 
       });
     } finally {
       setLoading(false);
@@ -248,11 +233,11 @@ export default function ConfiguracionEmpresa() {
       </div>
 
       {mensaje.texto && (
-        <div className={`mb-6 p-4 rounded-lg flex items-center gap-2 ${
+        <div className={`mb-6 p-4 rounded-lg flex items-start gap-2 ${
           mensaje.tipo === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'
         }`}>
-          {mensaje.tipo === 'exito' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-          {mensaje.texto}
+          {mensaje.tipo === 'exito' ? <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+          <span className="text-sm">{mensaje.texto}</span>
         </div>
       )}
 
@@ -269,7 +254,7 @@ export default function ConfiguracionEmpresa() {
           </p>
         </div>
 
-        <form onSubmit={empresaExiste ? handleActualizar : handleCrear} className="p-6 space-y-5">
+        <form onSubmit={handleGuardar} className="p-6 space-y-5">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">RUT de la Empresa *</label>
             <input
@@ -350,73 +335,37 @@ export default function ConfiguracionEmpresa() {
           </div>
 
           <div className="flex gap-3 pt-4">
-            {empresaExiste ? (
-              <>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Actualizando...
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="w-5 h-5" />
-                      Actualizar Datos
-                    </>
-                  )}
-                </button>
-                <Link
-                  href="/dashboard"
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                  Cancelar
-                </Link>
-              </>
-            ) : (
-              <>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Registrando...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-5 h-5" />
-                      Cargar Datos de Empresa
-                    </>
-                  )}
-                </button>
-                <Link
-                  href="/dashboard"
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                  Cancelar
-                </Link>
-              </>
-            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className={`flex-1 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all ${
+                empresaExiste 
+                  ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-400' 
+                  : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400'
+              }`}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {empresaExiste ? 'Actualizando...' : 'Registrando...'}
+                </>
+              ) : (
+                <>
+                  {empresaExiste ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                  {empresaExiste ? 'Actualizar Datos' : 'Guardar Configuración'}
+                </>
+              )}
+            </button>
+            <Link
+              href="/dashboard"
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Cancelar
+            </Link>
           </div>
         </form>
       </div>
-
-      {empresaExiste && (
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
-            <strong>ℹ️ Información:</strong> Los datos de empresa ya están registrados. 
-            Usa el botón "Actualizar Datos" para modificarlos.
-          </p>
-        </div>
-      )}
     </div>
   );
 }
