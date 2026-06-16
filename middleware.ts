@@ -16,7 +16,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({
             request,
           })
@@ -28,13 +28,12 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // IMPORTANTE: Refrescar la sesión para obtener datos actualizados del usuario
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   // Rutas protegidas (requieren autenticación)
-  const protectedRoutes = ['/dashboard', '/configuracion', '/empleados', '/permisos', '/ambientes', '/bloques', '/asignaciones', '/reportes', '/usuarios']
+  const protectedRoutes = ['/dashboard', '/configuracion', '/empleados', '/permisos', '/ambientes', '/bloques', '/asignaciones', '/reportes', '/usuarios', '/rotacion', '/respaldos']
   const isProtectedRoute = protectedRoutes.some(route => 
     request.nextUrl.pathname.startsWith(route)
   )
@@ -47,16 +46,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Si hay usuario, verificar permisos de rol en base de datos
+  // Si hay usuario, verificar permisos de rol
   if (user && isProtectedRoute) {
+    // Obtener el perfil del usuario
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('rol')
       .eq('id', user.id)
       .single()
 
-    // Rutas exclusivas para administradores
-    const adminOnlyRoutes = ['/configuracion', '/usuarios']
+    // Rutas que solo el admin puede acceder
+    const adminOnlyRoutes = ['/configuracion', '/usuarios', '/respaldos']
     const isAdminRoute = adminOnlyRoutes.some(route => 
       request.nextUrl.pathname.startsWith(route)
     )
@@ -69,10 +69,10 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Si hay usuario y está en login, redirigir a dashboard (corregido con startsWith)
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  // Si hay usuario y está en login, redirigir a dashboard
+  if (user && request.nextUrl.pathname === '/login') {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    url.pathname = '/dashboard'  // ← AQUÍ debe ser /dashboard
     return NextResponse.redirect(url)
   }
 
