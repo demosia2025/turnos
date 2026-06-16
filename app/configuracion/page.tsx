@@ -1,187 +1,277 @@
 // app/configuracion/page.tsx
 'use client';
 
-// 1. MODIFICADO: Añadido 'useEffect' desde react e 'useRouter' desde next/navigation
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { Building2, Save, AlertCircle, Upload, Image as ImageIcon } from 'lucide-react';
-// 2. AÑADIDO: Importar el hook useAuth según la guía
 import { useAuth } from '@/lib/useAuth';
+import { Building2, Save, Upload, ArrowLeft, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function ConfiguracionEmpresa() {
   const router = useRouter();
-  // 3. AÑADIDO: Obtener propiedades de autenticación
   const { isAdmin, loading: authLoading } = useAuth();
-
-  // 4. MODIFICADO: Se renombró a 'formLoading' para que no choque con la variable de arriba
-  const [formLoading, setFormLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
-  const [archivoLogo, setArchivoLogo] = useState<File | null>(null);
-  const [vistaPrevia, setVistaPrevia] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    rut: '',
+    razon_social: '',
+    nombre_fantasia: '',
+    direccion: '',
+    logo_url: ''
+  });
 
-  // 5. AÑADIDO: Redirigir al dashboard si no es administrador y terminó de cargar
+  // Redirigir si no es admin
   useEffect(() => {
     if (!authLoading && !isAdmin) {
       router.push('/dashboard');
     }
   }, [isAdmin, authLoading, router]);
 
-  // Pantalla de carga mientras se verifica el rol del usuario
+  // Cargar datos existentes
+  useEffect(() => {
+    const cargarEmpresa = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('companies')
+          .select('*')
+          .limit(1)
+          .single();
+
+        if (data) {
+          setFormData({
+            rut: data.rut || '',
+            razon_social: data.razon_social || '',
+            nombre_fantasia: data.nombre_fantasia || '',
+            direccion: data.direccion || '',
+            logo_url: data.logo_url || ''
+          });
+        }
+      } catch (error) {
+        console.error('Error cargando empresa:', error);
+      }
+    };
+
+    if (isAdmin) {
+      cargarEmpresa();
+    }
+  }, [isAdmin]);
+
+  const handleGuardar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMensaje({ tipo: '', texto: '' });
+
+    try {
+      // Verificar si ya existe un registro
+      const { data: existente } = await supabase
+        .from('companies')
+        .select('id')
+        .limit(1)
+        .single();
+
+      if (existente) {
+        // Actualizar registro existente
+        const { error } = await supabase
+          .from('companies')
+          .update(formData)
+          .eq('id', existente.id);
+
+        if (error) throw error;
+        setMensaje({ tipo: 'exito', texto: 'Configuración actualizada correctamente.' });
+      } else {
+        // Crear nuevo registro
+        const { error } = await supabase
+          .from('companies')
+          .insert([formData]);
+
+        if (error) throw error;
+        setMensaje({ tipo: 'exito', texto: 'Configuración guardada correctamente.' });
+      }
+
+      // Redirigir al dashboard después de 2 segundos
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Error guardando configuración:', error);
+      setMensaje({ 
+        tipo: 'error', 
+        texto: error.message || 'Error al guardar la configuración. Verifica los datos e intenta nuevamente.' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubirLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setMensaje({ tipo: '', texto: '' });
+
+    try {
+      // Subir imagen a Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+      const filePath = `logos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('company-assets')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Obtener URL pública
+      const { data: urlData } = supabase.storage
+        .from('company-assets')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, logo_url: urlData.publicUrl });
+      setMensaje({ tipo: 'exito', texto: 'Logo subido correctamente.' });
+    } catch (error: any) {
+      console.error('Error subiendo logo:', error);
+      setMensaje({ tipo: 'error', texto: 'Error al subir el logo.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (authLoading) {
-    return <div className="p-8 text-center text-gray-500 font-medium">Cargando...</div>;
+    return <div className="p-8 text-center">Cargando...</div>;
   }
 
-  // Si no es administrador, no renderizar nada en pantalla mientras se ejecuta el redireccionamiento
   if (!isAdmin) {
     return null;
   }
 
-  const manejarCambioArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) { // Máximo 2MB
-        setMensaje({ tipo: 'error', texto: 'El archivo es demasiado grande. Máximo 2MB.' });
-        return;
-      }
-      setArchivoLogo(file);
-      setVistaPrevia(URL.createObjectURL(file));
-      setMensaje({ tipo: '', texto: '' });
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setFormLoading(true);
-    setMensaje({ tipo: '', texto: '' });
-
-    const formData = new FormData(e.currentTarget);
-    let logoUrl = formData.get('logo_url_temp') as string; // URL existente si la hubiera
-
-    try {
-      // 1. Subir el logo si se seleccionó uno nuevo
-      if (archivoLogo) {
-        const fileExt = archivoLogo.name.split('.').pop();
-        const fileName = `logo-empresa-${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('logos')
-          .upload(fileName, archivoLogo);
-
-        if (uploadError) throw uploadError;
-
-        // Obtener la URL pública
-        const { data: { publicUrl } } = supabase.storage
-          .from('logos')
-          .getPublicUrl(fileName);
-        
-        logoUrl = publicUrl;
-      }
-
-      // 2. Guardar datos en la tabla 'companies'
-      const data = {
-        rut: formData.get('rut'),
-        razon_social: formData.get('razon_social'),
-        direccion: formData.get('direccion'),
-        nombre_fantasia: formData.get('nombre_fantasia'),
-        logo_url: logoUrl,
-      };
-
-      // Usamos upsert para actualizar si ya existe, o insertar si es nuevo
-      const { error: dbError } = await supabase
-        .from('companies')
-        .upsert(data, { onConflict: 'rut' });
-
-      if (dbError) throw dbError;
-
-      setMensaje({ tipo: 'exito', texto: '¡Empresa configurada y logo guardado exitosamente!' });
-      setArchivoLogo(null);
-      setVistaPrevia(null);
-      (e.target as HTMLFormElement).reset();
-
-    } catch (error: any) {
-      setMensaje({ tipo: 'error', texto: 'Error: ' + error.message });
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg border-t-4 border-blue-700">
-        
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <Building2 className="w-8 h-8 text-blue-700" />
-            <h1 className="text-2xl font-bold text-gray-800">Configurar Empresa</h1>
-          </div>
+    <div>
+      {/* Header con botón de volver */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <Link 
+            href="/dashboard"
+            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 mb-2 text-sm font-semibold"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver al Dashboard
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <Building2 className="w-6 h-6 text-blue-700" /> Configuración de Empresa
+          </h1>
+          <p className="text-gray-500 text-sm">Configura los datos de tu empresa</p>
+        </div>
+      </div>
+
+      {mensaje.texto && (
+        <div className={`mb-6 p-4 rounded-lg flex items-center gap-2 ${
+          mensaje.tipo === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'
+        }`}>
+          {mensaje.tipo === 'exito' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          {mensaje.texto}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-w-3xl">
+        <div className="bg-blue-700 p-6">
+          <h2 className="text-white font-bold text-lg">Datos de la Empresa</h2>
+          <p className="text-blue-200 text-sm mt-1">Esta información aparecerá en todo el sistema</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {mensaje.texto && (
-            <div className={`p-4 rounded-lg flex items-center gap-2 ${
-              mensaje.tipo === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'
-            }`}>
-              <AlertCircle className="w-5 h-5" />
-              {mensaje.texto}
-            </div>
-          )}
-
-          {/* Sección de Logo */}
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-            <label className="block text-sm font-semibold text-blue-800 mb-2">Logo de la Empresa</label>
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 bg-white border-2 border-dashed border-blue-300 rounded-lg flex items-center justify-center overflow-hidden">
-                {vistaPrevia ? (
-                  <img src={vistaPrevia} alt="Vista previa" className="w-full h-full object-contain" />
-                ) : (
-                  <ImageIcon className="w-8 h-8 text-blue-300" />
-                )}
-              </div>
-              <div className="flex-1">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={manejarCambioArchivo}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
-                />
-                <p className="text-xs text-gray-500 mt-1">PNG, JPG o SVG. Máximo 2MB.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">RUT Empresa *</label>
-              <input name="rut" required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="76.123.456-7" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Nombre de Fantasía *</label>
-              <input name="nombre_fantasia" required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: TechSolutions" />
-            </div>
+        <form onSubmit={handleGuardar} className="p-6 space-y-5">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">RUT de la Empresa *</label>
+            <input
+              type="text"
+              required
+              value={formData.rut}
+              onChange={(e) => setFormData({...formData, rut: e.target.value})}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="12.345.678-9"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Razón Social *</label>
-            <input name="razon_social" required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: TechSolutions SpA" />
+            <input
+              type="text"
+              required
+              value={formData.razon_social}
+              onChange={(e) => setFormData({...formData, razon_social: e.target.value})}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Nombre legal de la empresa"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Nombre de Fantasía *</label>
+            <input
+              type="text"
+              required
+              value={formData.nombre_fantasia}
+              onChange={(e) => setFormData({...formData, nombre_fantasia: e.target.value})}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Nombre comercial visible"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Dirección</label>
-            <input name="direccion" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Av. Principal 123, Ciudad" />
+            <input
+              type="text"
+              value={formData.direccion}
+              onChange={(e) => setFormData({...formData, direccion: e.target.value})}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Dirección de la empresa"
+            />
           </div>
 
-          {/* Campo oculto para mantener la URL si no se cambia el logo */}
-          <input type="hidden" name="logo_url_temp" value="" />
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Logo de la Empresa</label>
+            <div className="flex items-center gap-4">
+              {formData.logo_url && (
+                <img 
+                  src={formData.logo_url} 
+                  alt="Logo" 
+                  className="w-20 h-20 object-contain border border-gray-300 rounded-lg p-2"
+                />
+              )}
+              <div className="flex-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleSubirLogo}
+                  className="hidden"
+                  id="logo-upload"
+                />
+                <label
+                  htmlFor="logo-upload"
+                  className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  {formData.logo_url ? 'Cambiar Logo' : 'Subir Logo'}
+                </label>
+                {formData.logo_url && (
+                  <p className="text-xs text-gray-500 mt-1">Logo actual cargado</p>
+                )}
+              </div>
+            </div>
+          </div>
 
-          <div className="pt-4">
-            <button 
-              type="submit" 
-              disabled={formLoading}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md"
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
             >
-              {formLoading ? (
-                <span className="animate-pulse">Guardando y subiendo...</span>
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Guardando...
+                </>
               ) : (
                 <>
                   <Save className="w-5 h-5" />
@@ -189,6 +279,13 @@ export default function ConfiguracionEmpresa() {
                 </>
               )}
             </button>
+            <Link
+              href="/dashboard"
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Cancelar
+            </Link>
           </div>
         </form>
       </div>
