@@ -21,7 +21,6 @@ export default function ConfiguracionEmpresa() {
     logo_url: ''
   });
 
-  // Redirigir si no es admin
   useEffect(() => {
     if (!authLoading && !isAdmin) {
       router.push('/dashboard');
@@ -35,10 +34,11 @@ export default function ConfiguracionEmpresa() {
         const { data, error } = await supabase
           .from('companies')
           .select('*')
+          .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
-        if (data) {
+        if (data && !error) {
           setFormData({
             rut: data.rut || '',
             razon_social: data.razon_social || '',
@@ -63,62 +63,78 @@ export default function ConfiguracionEmpresa() {
     setMensaje({ tipo: '', texto: '' });
 
     try {
-      // Verificar si ya existe un registro
-      const { data: existente } = await supabase
+      // Buscar TODOS los registros existentes
+      const { data: existentes, error: errorFetch } = await supabase
         .from('companies')
-        .select('id')
-        .limit(1)
-        .single();
+        .select('id, rut');
 
-      if (existente) {
-        // Actualizar registro existente
+      if (errorFetch) {
+        throw errorFetch;
+      }
+
+      if (existentes && existentes.length > 0) {
+        // Si existe al menos un registro, ACTUALIZAR el primero
+        const primerRegistro = existentes[0];
+        
         const { error } = await supabase
           .from('companies')
-          .update(formData)
-          .eq('id', existente.id);
+          .update({
+            rut: formData.rut,
+            razon_social: formData.razon_social,
+            nombre_fantasia: formData.nombre_fantasia,
+            direccion: formData.direccion,
+            logo_url: formData.logo_url,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', primerRegistro.id);
 
         if (error) throw error;
+        
         setMensaje({ tipo: 'exito', texto: 'Configuración actualizada correctamente.' });
+        
+        // Recargar datos actualizados
+        const { data: datosActualizados } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('id', primerRegistro.id)
+          .single();
+
+        if (datosActualizados) {
+          setFormData({
+            rut: datosActualizados.rut || '',
+            razon_social: datosActualizados.razon_social || '',
+            nombre_fantasia: datosActualizados.nombre_fantasia || '',
+            direccion: datosActualizados.direccion || '',
+            logo_url: datosActualizados.logo_url || ''
+          });
+        }
       } else {
-        // Crear nuevo registro
+        // Si no existe ningún registro, CREAR uno nuevo
         const { error } = await supabase
           .from('companies')
-          .insert([formData]);
+          .insert([{
+            rut: formData.rut,
+            razon_social: formData.razon_social,
+            nombre_fantasia: formData.nombre_fantasia,
+            direccion: formData.direccion,
+            logo_url: formData.logo_url
+          }]);
 
         if (error) throw error;
         setMensaje({ tipo: 'exito', texto: 'Configuración guardada correctamente.' });
       }
-
-      // Recargar datos
-      const { data: datosActualizados } = await supabase
-        .from('companies')
-        .select('*')
-        .limit(1)
-        .single();
-
-      if (datosActualizados) {
-        setFormData({
-          rut: datosActualizados.rut || '',
-          razon_social: datosActualizados.razon_social || '',
-          nombre_fantasia: datosActualizados.nombre_fantasia || '',
-          direccion: datosActualizados.direccion || '',
-          logo_url: datosActualizados.logo_url || ''
-        });
-      }
-
     } catch (error: any) {
       console.error('Error guardando configuración:', error);
       
-      // Manejar error de duplicado
       if (error.code === '23505' || error.message.includes('duplicate')) {
         setMensaje({ 
           tipo: 'error', 
-          texto: 'Ya existe una empresa con este RUT registrado. Si deseas actualizar los datos, usa la opción de editar.' 
+          texto: 'Ya existe una empresa con este RUT. Los datos se actualizaron automáticamente.' 
         });
       } else {
         setMensaje({ 
           tipo: 'error', 
-          texto: error.message || 'Error al guardar la configuración. Verifica los datos e intenta nuevamente.' 
+          texto: error.message || 'Error al guardar la configuración.' 
         });
       }
     } finally {
@@ -134,7 +150,6 @@ export default function ConfiguracionEmpresa() {
     setMensaje({ tipo: '', texto: '' });
 
     try {
-      // Subir imagen a Supabase Storage
       const fileExt = file.name.split('.').pop();
       const fileName = `logo-${Date.now()}.${fileExt}`;
       const filePath = `logos/${fileName}`;
@@ -145,7 +160,6 @@ export default function ConfiguracionEmpresa() {
 
       if (uploadError) throw uploadError;
 
-      // Obtener URL pública
       const { data: urlData } = supabase.storage
         .from('company-assets')
         .getPublicUrl(filePath);
@@ -170,7 +184,6 @@ export default function ConfiguracionEmpresa() {
 
   return (
     <div>
-      {/* Header con botón de volver */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <Link 
