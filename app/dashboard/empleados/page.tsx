@@ -24,7 +24,6 @@ export default function EmpleadosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('todos');
   
-  // Modal de asignación
   const [showAsignarModal, setShowAsignarModal] = useState(false);
   const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState<any>(null);
   const [asignacionForm, setAsignacionForm] = useState({
@@ -38,7 +37,7 @@ export default function EmpleadosPage() {
 
   const fetchEmployees = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('employees')
       .select('*')
       .order('created_at', { ascending: false });
@@ -88,7 +87,6 @@ export default function EmpleadosPage() {
     setMensaje({ tipo: '', texto: '' });
 
     try {
-      // Verificar si ya existe una asignación activa para este empleado
       const { data: existente } = await supabase
         .from('assignments')
         .select('id')
@@ -97,7 +95,6 @@ export default function EmpleadosPage() {
         .single();
 
       if (existente) {
-        // Actualizar asignación existente
         const { error } = await supabase
           .from('assignments')
           .update({
@@ -111,7 +108,6 @@ export default function EmpleadosPage() {
         if (error) throw error;
         setMensaje({ tipo: 'exito', texto: 'Asignación actualizada correctamente.' });
       } else {
-        // Crear nueva asignación
         const { error } = await supabase
           .from('assignments')
           .insert([{
@@ -127,7 +123,6 @@ export default function EmpleadosPage() {
         setMensaje({ tipo: 'exito', texto: '¡Empleado asignado exitosamente!' });
       }
 
-      // Limpiar después de 2 segundos
       setTimeout(() => {
         setShowAsignarModal(false);
         setEmpleadoSeleccionado(null);
@@ -152,7 +147,8 @@ export default function EmpleadosPage() {
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
           >
             <UserPlus className="w-4 h-4" />
-            Nuevo Empleado
+            <span className="hidden sm:inline">Nuevo Empleado</span>
+            <span className="sm:hidden">Nuevo</span>
           </Link>
         </div>
       </div>
@@ -185,13 +181,13 @@ export default function EmpleadosPage() {
         </div>
       </div>
 
-      {/* Tabla de Empleados */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      {/* Versión Desktop - Tabla */}
+      <div className="hidden md:block bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Cargando empleados...</div>
         ) : filteredEmployees.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            No se encontraron empleados. <Link href="/dashboard/empleados/nuevo" className="text-blue-600 underline">Agregar el primero</Link>
+            No se encontraron empleados.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -224,7 +220,6 @@ export default function EmpleadosPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        {/* Botón de Asignar Turno y Ambiente */}
                         <button 
                           onClick={() => abrirModalAsignar(emp)}
                           className="p-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors"
@@ -248,7 +243,49 @@ export default function EmpleadosPage() {
         )}
       </div>
 
-      {/* Resumen */}
+      {/* Versión Móvil - Cards */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="p-8 text-center text-gray-500">Cargando...</div>
+        ) : filteredEmployees.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">No se encontraron empleados.</div>
+        ) : (
+          filteredEmployees.map((emp) => (
+            <div key={emp.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h3 className="font-bold text-gray-800">{emp.nombres} {emp.apellidos}</h3>
+                  <p className="text-xs text-gray-500">{emp.rut}</p>
+                </div>
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                  emp.estado === 'activo' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {emp.estado}
+                </span>
+              </div>
+              <div className="space-y-1 text-sm text-gray-600 mb-3">
+                <p>📧 {emp.correo || 'Sin correo'}</p>
+                <p>📱 {emp.telefono || 'Sin teléfono'}</p>
+              </div>
+              <div className="flex gap-2 pt-3 border-t">
+                <button 
+                  onClick={() => abrirModalAsignar(emp)}
+                  className="flex-1 bg-green-50 text-green-700 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1"
+                >
+                  <UserCheck className="w-4 h-4" /> Asignar
+                </button>
+                <button className="flex-1 bg-blue-50 text-blue-700 py-2 rounded-lg text-sm font-semibold">
+                  Editar
+                </button>
+                <button className="flex-1 bg-red-50 text-red-700 py-2 rounded-lg text-sm font-semibold">
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
       <div className="mt-4 text-sm text-gray-500">
         Mostrando {filteredEmployees.length} de {employees.length} empleados
       </div>
@@ -256,8 +293,8 @@ export default function EmpleadosPage() {
       {/* Modal de Asignación */}
       {showAsignarModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="bg-green-600 p-4 flex justify-between items-center">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="bg-green-600 p-4 flex justify-between items-center sticky top-0">
               <h2 className="text-white font-bold text-lg flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-yellow-400" />
                 Asignar Turno y Ambiente
@@ -271,7 +308,6 @@ export default function EmpleadosPage() {
             </div>
             
             <form onSubmit={handleAsignar} className="p-6 space-y-4">
-              {/* Información del empleado */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-xs text-blue-600 font-semibold mb-1">Empleado seleccionado:</p>
                 <p className="font-bold text-gray-800">
@@ -319,7 +355,7 @@ export default function EmpleadosPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Fecha Inicio *</label>
                   <input 
