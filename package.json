@@ -11,22 +11,27 @@
   "dependencies": {
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
+    "@tailwindcss/postcss": "latest",
     "lucide-react": "latest",
     "next": "16.2.9",
     "react": "latest",
     "react-dom": "latest",
     "jspdf": "^2.5.1",
-    "jspdf-autotable": "^3.8.2"
+    "jspdf-autotable": "^3.8.2",
+    "papaparse": "^5.4.1",
+    "resend": "latest",
+    "xlsx": "^0.18.5",
+    "tailwindcss": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/papaparse": "^5.3.14",
     "autoprefixer": "latest",
     "eslint": "latest",
     "eslint-config-next": "16.2.9",
     "postcss": "latest",
-    "tailwindcss": "latest",
     "typescript": "latest"
   }
 }
