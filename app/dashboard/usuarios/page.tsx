@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { UserPlus, Users, Shield, Edit2, Trash2, X, Save, AlertCircle, CheckCircle } from 'lucide-react';
+import { UserPlus, Users, Shield, Edit2, Trash2, X, Save, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
@@ -15,52 +15,132 @@ export default function UsuariosPage() {
 
   const fetchUsuarios = async () => {
     setLoading(true);
-    const res = await fetch('/api/usuarios');
-    const result = await res.json();
-    if (result.data) setUsuarios(result.data);
-    setLoading(false);
+    try {
+      const res = await fetch('/api/usuarios');
+      const result = await res.json();
+      
+      if (result.success && result.data) {
+        setUsuarios(result.data);
+      } else {
+        console.error('Error cargando usuarios:', result.error);
+        setMensaje({ 
+          tipo: 'error', 
+          texto: result.error || 'Error al cargar usuarios' 
+        });
+        setUsuarios([]);
+      }
+    } catch (error: any) {
+      console.error('Error en fetch:', error);
+      setMensaje({ 
+        tipo: 'error', 
+        texto: 'Error de conexión al cargar usuarios' 
+      });
+      setUsuarios([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchUsuarios(); }, []);
+  useEffect(() => { 
+    fetchUsuarios(); 
+  }, []);
 
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMensaje({ tipo: '', texto: '' });
 
-    const res = await fetch('/api/usuarios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    });
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
 
-    const result = await res.json();
-    if (res.ok) {
-      setMensaje({ tipo: 'exito', texto: `Usuario ${formData.nombres} creado exitosamente.` });
-      setFormData({ email: '', password: '', nombres: '', apellidos: '', rol: 'supervisor' });
-      setShowModal(false);
-      fetchUsuarios();
-    } else {
-      setMensaje({ tipo: 'error', texto: result.error || 'Error al crear usuario' });
+      const result = await res.json();
+      
+      if (result.success) {
+        setMensaje({ 
+          tipo: 'exito', 
+          texto: `Usuario ${formData.nombres} creado exitosamente.` 
+        });
+        setFormData({ 
+          email: '', 
+          password: '', 
+          nombres: '', 
+          apellidos: '', 
+          rol: 'supervisor' 
+        });
+        setShowModal(false);
+        fetchUsuarios();
+      } else {
+        setMensaje({ 
+          tipo: 'error', 
+          texto: result.error || 'Error al crear usuario' 
+        });
+      }
+    } catch (error: any) {
+      setMensaje({ 
+        tipo: 'error', 
+        texto: 'Error de conexión al crear usuario' 
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleCambiarRol = async (id: string, nuevoRol: string) => {
-    const res = await fetch('/api/usuarios', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, rol: nuevoRol })
-    });
-    if (res.ok) fetchUsuarios();
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, rol: nuevoRol })
+      });
+      
+      const result = await res.json();
+      
+      if (result.success) {
+        fetchUsuarios();
+      } else {
+        setMensaje({ 
+          tipo: 'error', 
+          texto: result.error || 'Error al cambiar rol' 
+        });
+      }
+    } catch (error: any) {
+      setMensaje({ 
+        tipo: 'error', 
+        texto: 'Error de conexión al cambiar rol' 
+      });
+    }
   };
 
   const handleEliminar = async (id: string, email: string) => {
     if (confirm(`¿Estás seguro de eliminar al usuario ${email}? Esta acción no se puede deshacer.`)) {
-      const res = await fetch(`/api/usuarios?id=${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setMensaje({ tipo: 'exito', texto: 'Usuario eliminado.' });
-        fetchUsuarios();
+      try {
+        const res = await fetch(`/api/usuarios?id=${id}`, { 
+          method: 'DELETE' 
+        });
+        
+        const result = await res.json();
+        
+        if (result.success) {
+          setMensaje({ 
+            tipo: 'exito', 
+            texto: 'Usuario eliminado exitosamente.' 
+          });
+          fetchUsuarios();
+        } else {
+          setMensaje({ 
+            tipo: 'error', 
+            texto: result.error || 'Error al eliminar usuario' 
+          });
+        }
+      } catch (error: any) {
+        setMensaje({ 
+          tipo: 'error', 
+          texto: 'Error de conexión al eliminar usuario' 
+        });
       }
     }
   };
@@ -92,7 +172,23 @@ export default function UsuariosPage() {
       )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? <div className="p-8 text-center text-gray-500">Cargando usuarios...</div> :
+        {loading ? (
+          <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Cargando usuarios...
+          </div>
+        ) : usuarios.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p>No hay usuarios registrados.</p>
+            <button 
+              onClick={() => setShowModal(true)}
+              className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              Crear el primer usuario
+            </button>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
@@ -108,14 +204,16 @@ export default function UsuariosPage() {
                 {usuarios.map((u) => (
                   <tr key={u.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">{u.nombres || 'Sin nombre'} {u.apellidos || ''}</div>
+                      <div className="font-medium text-gray-900">
+                        {u.nombres || 'Sin nombre'} {u.apellidos || ''}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">{u.email}</td>
                     <td className="px-6 py-4">
                       <select 
                         value={u.rol} 
                         onChange={(e) => handleCambiarRol(u.id, e.target.value)}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border cursor-pointer ${
                           u.rol === 'admin' 
                             ? 'bg-blue-100 text-blue-800 border-blue-200' 
                             : 'bg-yellow-100 text-yellow-800 border-yellow-200'
@@ -131,7 +229,7 @@ export default function UsuariosPage() {
                     <td className="px-6 py-4 text-right">
                       <button 
                         onClick={() => handleEliminar(u.id, u.email)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Eliminar usuario"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -142,14 +240,18 @@ export default function UsuariosPage() {
               </tbody>
             </table>
           </div>
-        }
+        )}
+      </div>
+
+      <div className="mt-4 text-sm text-gray-500">
+        Total: {usuarios.length} usuarios
       </div>
 
       {/* Modal de Crear Usuario */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="bg-blue-700 p-4 flex justify-between items-center">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="bg-blue-700 p-4 flex justify-between items-center sticky top-0">
               <h2 className="text-white font-bold text-lg flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-yellow-400" />
                 Crear Nuevo Usuario
@@ -222,8 +324,22 @@ export default function UsuariosPage() {
                 <strong>Nota:</strong> El usuario podrá iniciar sesión inmediatamente con el correo y contraseña proporcionados.
               </div>
 
-              <button type="submit" disabled={loading} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-2 rounded-lg flex justify-center items-center gap-2">
-                {loading ? 'Creando...' : <><Save className="w-4 h-4" /> Crear Usuario</>}
+              <button 
+                type="submit" 
+                disabled={loading} 
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-2 rounded-lg flex justify-center items-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Crear Usuario
+                  </>
+                )}
               </button>
             </form>
           </div>
