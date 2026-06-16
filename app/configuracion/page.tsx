@@ -89,17 +89,38 @@ export default function ConfiguracionEmpresa() {
         setMensaje({ tipo: 'exito', texto: 'Configuración guardada correctamente.' });
       }
 
-      // Redirigir al dashboard después de 2 segundos
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 2000);
+      // Recargar datos
+      const { data: datosActualizados } = await supabase
+        .from('companies')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (datosActualizados) {
+        setFormData({
+          rut: datosActualizados.rut || '',
+          razon_social: datosActualizados.razon_social || '',
+          nombre_fantasia: datosActualizados.nombre_fantasia || '',
+          direccion: datosActualizados.direccion || '',
+          logo_url: datosActualizados.logo_url || ''
+        });
+      }
 
     } catch (error: any) {
       console.error('Error guardando configuración:', error);
-      setMensaje({ 
-        tipo: 'error', 
-        texto: error.message || 'Error al guardar la configuración. Verifica los datos e intenta nuevamente.' 
-      });
+      
+      // Manejar error de duplicado
+      if (error.code === '23505' || error.message.includes('duplicate')) {
+        setMensaje({ 
+          tipo: 'error', 
+          texto: 'Ya existe una empresa con este RUT registrado. Si deseas actualizar los datos, usa la opción de editar.' 
+        });
+      } else {
+        setMensaje({ 
+          tipo: 'error', 
+          texto: error.message || 'Error al guardar la configuración. Verifica los datos e intenta nuevamente.' 
+        });
+      }
     } finally {
       setLoading(false);
     }
